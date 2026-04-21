@@ -1,0 +1,24 @@
+#!/bin/bash
+
+image=reg.nemui.org/cclaude/cclaude
+
+volumes=()
+
+for t in /etc/passwd:ro /etc/group:ro \
+	~/.claude.json ~/.claude ~/.local/share/claude ~/.local/bin:ro \
+	~/.gitconfig:ro ~/.aws:ro ~/.config/ccstatusline:ro ~/.config/gh:ro \
+	~/.nodenv ~/.rustup ~/.rbenv ~/.bun ~/.cargo ~/.npm \
+	/run/user/$(id -u)/bus:ro \
+	; do
+  if [ -L "${t%%:*}" ]; then
+    volumes+=(-v "$(readlink -n "${t%%:*}"):$t")
+  elif [ -e "${t%%:*}" ]; then
+    volumes+=(-v "${t%%:*}:$t")
+  fi
+done
+
+#exec docker run -u $(id -u):$(id -g) -w "$PWD" -v "$PWD:$PWD" \
+exec docker run -w "$PWD" -v "$PWD:$PWD" \
+	-e PATH -e COLORTERM -e TERM -e DBUS_SESSION_BUS_ADDRESS -e USER -e HOME \
+	--rm -it "${volumes[@]}" \
+	"$image" "${@}"
