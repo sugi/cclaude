@@ -1,0 +1,5 @@
+services:
+  runner:
+    build:
+      context: .
+    image: reg.nemui.org/cclaude/cclaude

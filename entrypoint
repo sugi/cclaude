@@ -1,0 +1,9 @@
+#!/bin/bash
+
+if [ '!' -z "$USER" ]; then
+  export SHELL=/bin/bash
+  chown $USER $HOME
+  exec sudo -E -u "$USER" env PATH=$PATH claude "${@}"
+else
+  exec claude "${@}"
+fi
