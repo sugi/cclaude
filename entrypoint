@@ -3,6 +3,10 @@
 if [ '!' -z "$USER" ]; then
   export SHELL=/bin/bash
   chown $USER $HOME
+  if [ -e $HOME/.ssh ]; then
+    chown $USER $HOME/.ssh
+    chmod 700 $HOME/.ssh
+  fi
   exec sudo -E -u "$USER" env PATH=$PATH claude "${@}"
 else
   exec claude "${@}"

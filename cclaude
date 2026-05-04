@@ -8,17 +8,22 @@ for t in /etc/passwd:ro /etc/group:ro \
 	~/.claude.json ~/.claude ~/.local/share/claude ~/.local/bin:ro \
 	~/.gitconfig:ro ~/.aws:ro ~/.config/ccstatusline:ro ~/.config/gh:ro \
 	~/.nodenv ~/.rustup ~/.rbenv ~/.bun ~/.cargo ~/.npm \
-	/run/user/$(id -u)/bus:ro \
+	/run/user/$(id -u)/bus:ro "${SSH_AUTH_SOCK}:ro" ~/.ssh/known_hosts:ro \
 	; do
-  if [ -L "${t%%:*}" ]; then
-    volumes+=(-v "$(readlink -n "${t%%:*}"):$t")
-  elif [ -e "${t%%:*}" ]; then
-    volumes+=(-v "${t%%:*}:$t")
+  path="${t%%:*}"
+  if [ -z "$path" ]; then
+    continue;
+  elif [ -L "$path" ]; then
+    volumes+=(-v "$(readlink -n "$path"):$t")
+  elif [ -e "$path" ]; then
+    volumes+=(-v "$path:$t")
   fi
 done
 
 #exec docker run -u $(id -u):$(id -g) -w "$PWD" -v "$PWD:$PWD" \
 exec docker run -w "$PWD" -v "$PWD:$PWD" \
-	-e PATH -e COLORTERM -e TERM -e DBUS_SESSION_BUS_ADDRESS -e USER -e HOME \
-	--rm -it "${volumes[@]}" \
-	"$image" "${@}"
+  -e PATH -e COLORTERM -e TERM -e DBUS_SESSION_BUS_ADDRESS -e USER -e HOME -e SSH_AUTH_SOCK \
+  --rm -it "${volumes[@]}" \
+  "$image" "${@}"
+
+# vim: set sts=2 sw=2:
