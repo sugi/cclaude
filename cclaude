@@ -5,9 +5,9 @@ image=reg.nemui.org/cclaude/cclaude
 volumes=()
 
 for t in /etc/passwd:ro /etc/group:ro \
-	~/.claude.json ~/.claude ~/.local/share/claude ~/.local/bin:ro \
+	~/.claude.json ~/.claude ~/.local/share/claude ~/.local/bin:ro ~/.agents \
 	~/.gitconfig:ro ~/.aws:ro ~/.config/ccstatusline:ro ~/.config/gh:ro \
-	~/.nodenv ~/.rustup ~/.rbenv ~/.bun ~/.cargo ~/.npm \
+	~/.nodenv ~/.rustup ~/.rbenv ~/.bun ~/.cargo ~/.npm ~/.inputrc:ro \
 	/run/user/$(id -u)/bus:ro "${SSH_AUTH_SOCK}:ro" ~/.ssh/known_hosts:ro \
 	; do
   path="${t%%:*}"
@@ -20,9 +20,10 @@ for t in /etc/passwd:ro /etc/group:ro \
   fi
 done
 
-#exec docker run -u $(id -u):$(id -g) -w "$PWD" -v "$PWD:$PWD" \
 exec docker run -w "$PWD" -v "$PWD:$PWD" \
   -e PATH -e COLORTERM -e TERM -e DBUS_SESSION_BUS_ADDRESS -e USER -e HOME -e SSH_AUTH_SOCK \
+  -e TERM_PROGRAM -e WEZTERM_PANE -e WEZTERM_UNIX_SOCKET \
+  -e KONSOLE_DBUS_ACTIVATION_COOKIE -e KONSOLE_DBUS_SESSION -e KONSOLE_DBUS_WINDOW \
   --rm -it "${volumes[@]}" \
   "$image" "${@}"
 
