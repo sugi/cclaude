@@ -1,6 +1,6 @@
 FROM debian
 
-RUN apt -y update && apt -y upgrade && apt -y install curl lsof procps findutils ripgrep wget build-essential cmake rustup tini git sudo jq python3 python-is-python3 libssl-dev pkg-config
+RUN apt -y update && apt -y upgrade && apt -y install curl lsof procps findutils ripgrep wget build-essential cmake rustup tini git sudo jq sox python3 python-is-python3 python3-yaml libssl-dev pkg-config
 RUN sudo mkdir -p -m 755 /etc/apt/keyrings \
 	&& out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 	&& cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
