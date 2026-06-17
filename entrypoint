@@ -1,5 +1,15 @@
 #!/bin/bash
 
+cmd=claude
+
+case "$1" in
+  bash|/bin/bash|bunx|npx)
+    cmd="$1"
+    shift
+    ;;
+esac
+
+
 if [ '!' -z "$USER" ]; then
   export SHELL=/bin/bash
   chown $USER $HOME
@@ -7,7 +17,7 @@ if [ '!' -z "$USER" ]; then
     chown $USER $HOME/.ssh
     chmod 700 $HOME/.ssh
   fi
-  exec sudo -E -u "$USER" env PATH=$PATH claude "${@}"
+  exec sudo -E -u "$USER" env "PATH=$PATH" "$cmd" "${@}"
 else
-  exec claude "${@}"
+  exec "$cmd" "${@}"
 fi
