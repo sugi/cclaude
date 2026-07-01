@@ -20,10 +20,19 @@ for t in /etc/passwd:ro /etc/group:ro \
   fi
 done
 
+# Resolve this pane's KWin window on the host (the container can't reach KWin)
+# and inject it so win-record.sh stores it without re-resolving inside the container.
+winenv=()
+winid="$("$HOME/.claude/hooks/kwin.sh" resolve 2>/dev/null)"
+if [ -n "$winid" ]; then
+  winenv=(-e CLAUDE_WIN_ID="$winid")
+fi
+
 exec docker run -w "$PWD" -v "$PWD:$PWD" \
   -e PATH -e COLORTERM -e TERM -e DBUS_SESSION_BUS_ADDRESS -e USER -e HOME -e SSH_AUTH_SOCK \
   -e TERM_PROGRAM -e WEZTERM_PANE -e WEZTERM_UNIX_SOCKET -e TMUX -e TMUX_PANE \
   -e KONSOLE_DBUS_ACTIVATION_COOKIE -e KONSOLE_DBUS_SESSION -e KONSOLE_DBUS_WINDOW \
+  "${winenv[@]}" \
   --rm -it "${volumes[@]}" \
   "$image" "${@}"
 
