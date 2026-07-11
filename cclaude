@@ -6,7 +6,7 @@ volumes=()
 
 for t in /etc/passwd:ro /etc/group:ro \
 	~/.claude.json ~/.claude ~/.local/share/claude ~/.local/bin:ro ~/.agents \
-	~/.gitconfig:ro ~/.aws:ro ~/.config/ccstatusline:ro ~/.config/gh:ro \
+	~/.gitconfig:ro ~/.config/ccstatusline:ro ~/.config/gh:ro \
 	~/.nodenv ~/.rustup ~/.rbenv ~/.bun ~/.cargo ~/.npm ~/.inputrc:ro \
 	/run/user/$(id -u)/bus:ro ${SSH_AUTH_SOCK} ~/.ssh/known_hosts:ro ${TMUX} \
 	; do
@@ -28,6 +28,7 @@ if [ -n "$winid" ]; then
   winenv=(-e CLAUDE_WIN_ID="$winid")
 fi
 
+export HERDR_AGENT=claude
 exec docker run -w "$PWD" -v "$PWD:$PWD" \
   -e PATH -e COLORTERM -e TERM -e DBUS_SESSION_BUS_ADDRESS -e USER -e HOME -e SSH_AUTH_SOCK \
   -e TERM_PROGRAM -e WEZTERM_PANE -e WEZTERM_UNIX_SOCKET -e TMUX -e TMUX_PANE \
