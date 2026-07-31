@@ -6,9 +6,10 @@ volumes=()
 
 for t in /etc/passwd:ro /etc/group:ro \
 	~/.claude.json ~/.claude ~/.local/share/claude ~/.local/bin:ro ~/.agents \
-	~/.gitconfig:ro ~/.config/ccstatusline:ro ~/.config/gh:ro \
-	~/.nodenv ~/.rustup ~/.rbenv ~/.bun ~/.cargo ~/.npm ~/.inputrc:ro \
+	~/.gitconfig:ro ~/.config/ccstatusline:ro ~/.config/gh:ro ~/.cache/ms-playwright \
+	~/.nodenv ~/.rustup ~/.rbenv ~/.bun ~/.cargo ~/.npm ~/.inputrc:ro ~/lib/node_modules \
 	/run/user/$(id -u)/bus:ro ${SSH_AUTH_SOCK} ~/.ssh/known_hosts:ro ${TMUX} \
+	~/.codex ${CCLAUDE_VOLUMES} \
 	; do
   path="${t%%:*}"
   if [ -z "$path" ]; then
@@ -30,9 +31,16 @@ fi
 
 export HERDR_AGENT=claude
 exec docker run -w "$PWD" -v "$PWD:$PWD" \
+  --device /dev/kvm --device /dev/snd \
+  -e LANG -e LANGUAGE -e LC_CTYPE -e LC_NUMERIC -e LC_TIME -e LC_COLLATE -e LC_MONETARY -e LC_MESSAGES \
+  -e LC_PAPER -e LC_NAME -e LC_ADDRESS -e LC_TELEPHONE -e LC_MEASUREMENT -e LC_IDENTIFICATION -e LC_ALL \
   -e PATH -e COLORTERM -e TERM -e DBUS_SESSION_BUS_ADDRESS -e USER -e HOME -e SSH_AUTH_SOCK \
   -e TERM_PROGRAM -e WEZTERM_PANE -e WEZTERM_UNIX_SOCKET -e TMUX -e TMUX_PANE \
   -e KONSOLE_DBUS_ACTIVATION_COOKIE -e KONSOLE_DBUS_SESSION -e KONSOLE_DBUS_WINDOW \
+  -e OPENROUTER_API_KEY -e ANTHROPIC_BASE_URL -e ANTHROPIC_AUTH_TOKEN -e ANTHROPIC_API_KEY \
+  -e ANTHROPIC_DEFAULT_OPUS_MODEL -e ANTHROPIC_DEFAULT_SONNET_MODEL \
+  -e ANTHROPIC_DEFAULT_HAIKU_MODEL -e ANTHROPIC_DEFAULT_FABLE_MODEL \
+  -e TZ="$(timedatectl show --property=Timezone --value)" \
   "${winenv[@]}" \
   --rm -it "${volumes[@]}" \
   "$image" "${@}"
