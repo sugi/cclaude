@@ -80,6 +80,10 @@ run_wrapper "$repo_dir/ccodex" --yolo
 not_contains_arg seccomp=unconfined || fail "yolo disabled Docker seccomp"
 not_contains_arg apparmor=unconfined || fail "yolo disabled Docker AppArmor"
 
+run_wrapper "$repo_dir/ccodex" --sandbox --yolo
+contains_arg seccomp=unconfined || fail "sandbox value was reinterpreted as yolo"
+contains_arg apparmor=unconfined || fail "sandbox value disabled Docker AppArmor"
+
 run_wrapper "$repo_dir/ccodex" --sandbox read-only
 contains_arg seccomp=unconfined || fail "read-only mode cannot start bwrap"
 not_contains_arg workspace-write || fail "explicit read-only mode got default sandbox"
