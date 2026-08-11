@@ -271,6 +271,24 @@ assert_tail reg.nemui.org/cclaude/cclaude codex fork - --yolo
 run_wrapper "$repo_dir/ccodex" --psp --yolo
 assert_tail reg.nemui.org/cclaude/cclaude codex --psp --yolo
 
+run_wrapper "$repo_dir/ccodex" exec review --uncommitted --yolo
+assert_tail reg.nemui.org/cclaude/cclaude codex exec review --uncommitted --yolo
+
+run_wrapper "$repo_dir/ccodex" exec review --base main --yolo
+assert_tail reg.nemui.org/cclaude/cclaude codex exec review --base main --yolo
+
+run_wrapper "$repo_dir/ccodex" exec review --commit abc123 --yolo
+assert_tail reg.nemui.org/cclaude/cclaude codex exec review --commit abc123 --yolo
+
+run_wrapper "$repo_dir/ccodex" exec review --title title --yolo
+assert_tail reg.nemui.org/cclaude/cclaude codex exec review --title title --yolo
+
+run_wrapper "$repo_dir/ccodex" exec -o - --yolo
+assert_tail reg.nemui.org/cclaude/cclaude codex exec -o - --yolo
+
+run_wrapper "$repo_dir/ccodex" exec -i - --yolo
+assert_tail reg.nemui.org/cclaude/cclaude codex exec -i - --yolo
+
 run_wrapper "$repo_dir/ccodex" sandbox command --yolo
 contains_arg seccomp=unconfined || fail "sandbox command payload bypassed inner sandbox"
 assert_tail reg.nemui.org/cclaude/cclaude codex --sandbox workspace-write --ask-for-approval on-request sandbox command --yolo

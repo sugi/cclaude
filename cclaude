@@ -92,11 +92,11 @@ if [ "$agent" = codex ]; then
 
     case "$arg" in
       --image|-i)
-        if ((i + 1 >= ${#args[@]})) || [[ -z "${args[i + 1]}" || "${args[i + 1]}" = -- || "${args[i + 1]}" = -* ]]; then
+        if ((i + 1 >= ${#args[@]})) || [[ -z "${args[i + 1]}" || "${args[i + 1]}" = -- || ( "${args[i + 1]}" = -* && "${args[i + 1]}" != - ) ]]; then
           parser_error="missing value for $arg"
           break
         fi
-        while ((i + 1 < ${#args[@]})) && [[ "${args[i + 1]}" != -- && "${args[i + 1]}" != -* ]]; do
+        while ((i + 1 < ${#args[@]})) && [[ "${args[i + 1]}" != -- && ( "${args[i + 1]}" = - || "${args[i + 1]}" != -* ) ]]; do
           if [ -z "${args[i + 1]}" ]; then
             parser_error="missing value for $arg"
             break
@@ -111,7 +111,7 @@ if [ "$agent" = codex ]; then
           parser_error="missing value for $arg"
           break
         fi
-        while ((i + 1 < ${#args[@]})) && [[ "${args[i + 1]}" != -- && "${args[i + 1]}" != -* ]]; do
+        while ((i + 1 < ${#args[@]})) && [[ "${args[i + 1]}" != -- && ( "${args[i + 1]}" = - || "${args[i + 1]}" != -* ) ]]; do
           if [ -z "${args[i + 1]}" ]; then
             parser_error="missing value for $arg"
             break
@@ -122,12 +122,34 @@ if [ "$agent" = codex ]; then
         continue
         ;;
       --config|--enable|--disable|--remote|--remote-auth-token-env|--model|--local-provider|--profile|--cd|--add-dir|--output-schema|--color|--output-last-message|-c|-m|-p|-C|-o)
-        if ((i + 1 >= ${#args[@]})) || [[ -z "${args[i + 1]}" || "${args[i + 1]}" = -- || "${args[i + 1]}" = -* ]]; then
+        if ((i + 1 >= ${#args[@]})) || [[ -z "${args[i + 1]}" || "${args[i + 1]}" = -- || ( "${args[i + 1]}" = -* && "${args[i + 1]}" != - ) ]]; then
           parser_error="missing value for $arg"
           break
         fi
         ((i += 1))
         continue
+        ;;
+      --uncommitted)
+        if [ "$parser_mode" = exec_review ]; then
+          continue
+        fi
+        parser_error="unknown or ambiguous option: $arg"
+        break
+        ;;
+      --base|--commit|--title)
+        if [ "$parser_mode" = exec_review ] && ((i + 1 < ${#args[@]})) && [[ -n "${args[i + 1]}" && "${args[i + 1]}" != -- && ( "${args[i + 1]}" = - || "${args[i + 1]}" != -* ) ]]; then
+          ((i += 1))
+          continue
+        fi
+        parser_error="missing or unsupported value for $arg"
+        break
+        ;;
+      --base=*|--commit=*|--title=*)
+        if [ "$parser_mode" = exec_review ] && [ -n "${arg#*=}" ]; then
+          continue
+        fi
+        parser_error="missing or unsupported value for $arg"
+        break
         ;;
       --config=*|--enable=*|--disable=*|--remote=*|--remote-auth-token-env=*|--model=*|--local-provider=*|--profile=*|--cd=*|--add-dir=*|--output-schema=*|--color=*|--output-last-message=*|-c?*|-m?*|-p?*|-C?*|-o?*)
         if [ -z "${arg#*=}" ]; then
@@ -150,8 +172,14 @@ if [ "$agent" = codex ]; then
     esac
 
     case "$parser_mode:$arg" in
-      root:exec|root:resume|root:fork)
+      root:exec)
+        parser_mode=exec
+        ;;
+      root:resume|root:fork)
         parser_mode=agent
+        ;;
+      exec:review)
+        parser_mode=exec_review
         ;;
       root:review|root:login|root:logout|root:mcp|root:plugin|root:mcp-server|root:app-server|root:remote-control|root:completion|root:update|root:doctor|root:sandbox|root:debug|root:apply|root:archive|root:delete|root:unarchive|root:cloud|root:exec-server|root:features|root:help)
         break
