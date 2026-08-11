@@ -49,6 +49,29 @@ not_contains_arg() {
   ! contains_arg "$1"
 }
 
+assert_tail() {
+  local -a expected=("$@") actual=()
+  local image_index=-1 i
+  for i in "${!docker_args[@]}"; do
+    if [[ "${docker_args[i]}" == reg.nemui.org/cclaude/cclaude ]]; then
+      image_index=$i
+      break
+    fi
+  done
+  ((image_index >= 0)) || fail "Docker image missing from argument vector"
+  actual=("${docker_args[@]:image_index}")
+  if ((${#actual[@]} != ${#expected[@]})); then
+    fail "Docker tail length differs"
+  fi
+  for i in "${!expected[@]}"; do
+    [[ "${actual[i]}" == "${expected[i]}" ]] || {
+      printf 'FAIL: Docker tail differs at index %s: expected <%q>, got <%q>\n' \
+        "$i" "${expected[i]}" "${actual[i]}" >&2
+      exit 1
+    }
+  done
+}
+
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
   exit 1
@@ -56,45 +79,111 @@ fail() {
 
 run_wrapper "$repo_dir/cclaude" --version
 contains_arg reg.nemui.org/cclaude/cclaude || fail "Claude image missing"
-not_contains_arg codex || fail "Claude unexpectedly selected Codex"
+contains_arg HERDR_AGENT=claude || fail "Claude agent environment missing"
+assert_tail reg.nemui.org/cclaude/cclaude --version
 
 run_wrapper "$repo_dir/ccodex" "prompt with spaces"
 contains_arg seccomp=unconfined || fail "default Codex seccomp option missing"
 contains_arg apparmor=unconfined || fail "default Codex AppArmor option missing"
-contains_arg workspace-write || fail "default Codex sandbox missing"
-contains_arg on-request || fail "default Codex approval missing"
-contains_arg "prompt with spaces" || fail "spaced argument was split"
+contains_arg HERDR_AGENT=codex || fail "Codex agent environment missing"
+assert_tail reg.nemui.org/cclaude/cclaude codex --sandbox workspace-write --ask-for-approval on-request "prompt with spaces"
 
 run_wrapper "$repo_dir/ccodex" -a never
 contains_arg seccomp=unconfined || fail "never mode lost inner sandbox support"
-contains_arg never || fail "never approval option missing"
-not_contains_arg on-request || fail "default approval conflicts with explicit policy"
+assert_tail reg.nemui.org/cclaude/cclaude codex --sandbox workspace-write -a never
 
 run_wrapper "$repo_dir/ccodex" -a --yolo
 contains_arg seccomp=unconfined || fail "approval value was reinterpreted as yolo"
 contains_arg apparmor=unconfined || fail "approval value disabled Docker AppArmor"
+assert_tail reg.nemui.org/cclaude/cclaude codex --sandbox workspace-write -a --yolo
 
 run_wrapper "$repo_dir/ccodex" --dangerously-bypass-approvals-and-sandbox
-not_contains_arg seccomp=unconfined || fail "bypass disabled Docker seccomp"
-not_contains_arg apparmor=unconfined || fail "bypass disabled Docker AppArmor"
-not_contains_arg workspace-write || fail "bypass retained default sandbox"
-not_contains_arg on-request || fail "bypass retained default approval"
+not_contains_arg seccomp=unconfined || fail "bypass relaxed Docker seccomp"
+not_contains_arg apparmor=unconfined || fail "bypass relaxed Docker AppArmor"
+assert_tail reg.nemui.org/cclaude/cclaude codex --dangerously-bypass-approvals-and-sandbox
 
 run_wrapper "$repo_dir/ccodex" --yolo
-not_contains_arg seccomp=unconfined || fail "yolo disabled Docker seccomp"
-not_contains_arg apparmor=unconfined || fail "yolo disabled Docker AppArmor"
+not_contains_arg seccomp=unconfined || fail "yolo relaxed Docker seccomp"
+not_contains_arg apparmor=unconfined || fail "yolo relaxed Docker AppArmor"
+assert_tail reg.nemui.org/cclaude/cclaude codex --yolo
 
 run_wrapper "$repo_dir/ccodex" --sandbox --yolo
 contains_arg seccomp=unconfined || fail "sandbox value was reinterpreted as yolo"
 contains_arg apparmor=unconfined || fail "sandbox value disabled Docker AppArmor"
+assert_tail reg.nemui.org/cclaude/cclaude codex --ask-for-approval on-request --sandbox --yolo
 
 run_wrapper "$repo_dir/ccodex" --sandbox read-only
 contains_arg seccomp=unconfined || fail "read-only mode cannot start bwrap"
-not_contains_arg workspace-write || fail "explicit read-only mode got default sandbox"
+assert_tail reg.nemui.org/cclaude/cclaude codex --ask-for-approval on-request --sandbox read-only
 
 run_wrapper "$repo_dir/ccodex" -s danger-full-access
-not_contains_arg seccomp=unconfined || fail "full access disabled Docker seccomp"
-not_contains_arg apparmor=unconfined || fail "full access disabled Docker AppArmor"
-contains_arg on-request || fail "full access lost default approval"
+not_contains_arg seccomp=unconfined || fail "full access relaxed Docker seccomp"
+not_contains_arg apparmor=unconfined || fail "full access relaxed Docker AppArmor"
+assert_tail reg.nemui.org/cclaude/cclaude codex --ask-for-approval on-request -s danger-full-access
+
+run_wrapper "$repo_dir/ccodex" -sdanger-full-access
+not_contains_arg seccomp=unconfined || fail "attached full access relaxed Docker seccomp"
+not_contains_arg apparmor=unconfined || fail "attached full access relaxed Docker AppArmor"
+assert_tail reg.nemui.org/cclaude/cclaude codex --ask-for-approval on-request -sdanger-full-access
+
+run_wrapper "$repo_dir/ccodex" -anever
+contains_arg seccomp=unconfined || fail "attached approval lost inner sandbox support"
+assert_tail reg.nemui.org/cclaude/cclaude codex --sandbox workspace-write -anever
+
+run_wrapper "$repo_dir/ccodex" --sandbox=read-only --ask-for-approval=never
+assert_tail reg.nemui.org/cclaude/cclaude codex --sandbox=read-only --ask-for-approval=never
+
+run_wrapper "$repo_dir/ccodex" -s=read-only -a=never
+assert_tail reg.nemui.org/cclaude/cclaude codex -s=read-only -a=never
+
+run_wrapper "$repo_dir/ccodex" -s read-only --sandbox danger-full-access
+assert_tail reg.nemui.org/cclaude/cclaude codex --ask-for-approval on-request -s read-only --sandbox danger-full-access
+
+run_wrapper "$repo_dir/ccodex" --sandbox danger-full-access -s read-only
+contains_arg seccomp=unconfined || fail "last sandbox policy was not applied"
+assert_tail reg.nemui.org/cclaude/cclaude codex --ask-for-approval on-request --sandbox danger-full-access -s read-only
+
+run_wrapper "$repo_dir/ccodex" -s
+contains_arg seccomp=unconfined || fail "missing sandbox value unconfined Docker"
+assert_tail reg.nemui.org/cclaude/cclaude codex --sandbox workspace-write --ask-for-approval on-request -s
+
+run_wrapper "$repo_dir/ccodex" -a
+contains_arg seccomp=unconfined || fail "missing approval value unconfined Docker"
+assert_tail reg.nemui.org/cclaude/cclaude codex --sandbox workspace-write --ask-for-approval on-request -a
+
+run_wrapper "$repo_dir/ccodex" --future-option --sandbox danger-full-access
+contains_arg seccomp=unconfined || fail "unknown option relaxed Docker security"
+assert_tail reg.nemui.org/cclaude/cclaude codex --sandbox workspace-write --ask-for-approval on-request --future-option --sandbox danger-full-access
+
+run_wrapper "$repo_dir/ccodex" -i first.png sandbox --yolo
+not_contains_arg seccomp=unconfined || fail "variadic image values hid yolo"
+not_contains_arg apparmor=unconfined || fail "variadic image values relaxed Docker AppArmor"
+assert_tail reg.nemui.org/cclaude/cclaude codex -i first.png sandbox --yolo
+
+run_wrapper "$repo_dir/ccodex" -i --yolo
+contains_arg seccomp=unconfined || fail "missing image value bypassed inner sandbox"
+assert_tail reg.nemui.org/cclaude/cclaude codex --sandbox workspace-write --ask-for-approval on-request -i --yolo
+
+run_wrapper "$repo_dir/ccodex" --image= --yolo
+contains_arg seccomp=unconfined || fail "empty image value bypassed inner sandbox"
+assert_tail reg.nemui.org/cclaude/cclaude codex --sandbox workspace-write --ask-for-approval on-request --image= --yolo
+
+run_wrapper "$repo_dir/ccodex" exec -- --yolo
+contains_arg seccomp=unconfined || fail "exec payload bypassed inner sandbox"
+assert_tail reg.nemui.org/cclaude/cclaude codex --sandbox workspace-write --ask-for-approval on-request exec -- --yolo
+
+run_wrapper "$repo_dir/ccodex" sandbox command --yolo
+contains_arg seccomp=unconfined || fail "sandbox command payload bypassed inner sandbox"
+assert_tail reg.nemui.org/cclaude/cclaude codex --sandbox workspace-write --ask-for-approval on-request sandbox command --yolo
+
+run_wrapper "$repo_dir/ccodex" exec -sdanger-full-access -anever prompt
+assert_tail reg.nemui.org/cclaude/cclaude codex exec -sdanger-full-access -anever prompt
+
+run_wrapper "$repo_dir/ccodex" resume -s read-only -a never --last
+contains_arg seccomp=unconfined || fail "resume policy lost inner sandbox support"
+assert_tail reg.nemui.org/cclaude/cclaude codex resume -s read-only -a never --last
+
+run_wrapper "$repo_dir/ccodex" fork --sandbox=danger-full-access --ask-for-approval=never --last
+assert_tail reg.nemui.org/cclaude/cclaude codex fork --sandbox=danger-full-access --ask-for-approval=never --last
 
 printf 'wrapper tests passed\n'

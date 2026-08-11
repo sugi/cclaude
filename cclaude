@@ -30,26 +30,98 @@ if [ "$agent" = codex ]; then
   sandbox_value=""
   approval_explicit=false
   args=("$@")
+  parser_mode=root
+
   for ((i = 0; i < ${#args[@]}; i++)); do
-    case "${args[i]}" in
+    arg="${args[i]}"
+
+    [ "$arg" = -- ] && break
+
+    case "$arg" in
       --dangerously-bypass-approvals-and-sandbox|--yolo)
         bypass=true
+        continue
         ;;
       --sandbox|-s)
-        sandbox_explicit=true
-        sandbox_value="${args[i + 1]:-}"
-        ((i += 1))
+        if ((i + 1 < ${#args[@]})); then
+          sandbox_explicit=true
+          sandbox_value="${args[i + 1]}"
+          ((i += 1))
+          continue
+        fi
+        break
         ;;
       --sandbox=*|-s=*)
+        sandbox_value="${arg#*=}"
+        [ -n "$sandbox_value" ] || break
         sandbox_explicit=true
-        sandbox_value="${args[i]#*=}"
+        continue
+        ;;
+      -s?*)
+        sandbox_explicit=true
+        sandbox_value="${arg:2}"
+        continue
         ;;
       --ask-for-approval|-a)
-        approval_explicit=true
-        ((i += 1))
+        if ((i + 1 < ${#args[@]})); then
+          approval_explicit=true
+          ((i += 1))
+          continue
+        fi
+        break
         ;;
       --ask-for-approval=*|-a=*)
+        [ -n "${arg#*=}" ] || break
         approval_explicit=true
+        continue
+        ;;
+      -a?*)
+        approval_explicit=true
+        continue
+        ;;
+    esac
+
+    case "$arg" in
+      --image|-i)
+        ((i + 1 < ${#args[@]})) || break
+        [[ "${args[i + 1]}" != -- && "${args[i + 1]}" != -* ]] || break
+        while ((i + 1 < ${#args[@]})) && [[ "${args[i + 1]}" != -- && "${args[i + 1]}" != -* ]]; do
+          ((i += 1))
+        done
+        continue
+        ;;
+      --image=*|-i?*)
+        [ -n "${arg#*=}" ] || break
+        while ((i + 1 < ${#args[@]})) && [[ "${args[i + 1]}" != -- && "${args[i + 1]}" != -* ]]; do
+          ((i += 1))
+        done
+        continue
+        ;;
+      --config|--enable|--disable|--remote|--remote-auth-token-env|--model|--local-provider|--profile|--cd|--add-dir|--output-schema|--color|--output-last-message|-c|-m|-p|-C|-o)
+        ((i + 1 < ${#args[@]})) || break
+        ((i += 1))
+        continue
+        ;;
+      --config=*|--enable=*|--disable=*|--remote=*|--remote-auth-token-env=*|--model=*|--local-provider=*|--profile=*|--cd=*|--add-dir=*|--output-schema=*|--color=*|--output-last-message=*|-c?*|-m?*|-p?*|-C?*|-o?*)
+        continue
+        ;;
+      --oss|--strict-config|--approve-for-me|--dangerously-bypass-hook-trust|--search|--no-alt-screen|--skip-git-repo-check|--ephemeral|--ignore-user-config|--ignore-rules|--json|--last|--all|--include-non-interactive|-h|--help|-V|--version)
+        continue
+        ;;
+      -*)
+        break
+        ;;
+    esac
+
+    case "$parser_mode:$arg" in
+      root:exec|root:resume|root:fork)
+        parser_mode=agent
+        ;;
+      root:review|root:login|root:logout|root:mcp|root:plugin|root:mcp-server|root:app-server|root:remote-control|root:completion|root:update|root:doctor|root:sandbox|root:debug|root:apply|root:archive|root:delete|root:unarchive|root:cloud|root:exec-server|root:features|root:help)
+        break
+        ;;
+      root:*)
+        parser_mode=interactive
         ;;
     esac
   done
