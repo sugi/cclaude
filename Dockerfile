@@ -16,6 +16,11 @@ RUN sudo mkdir -p -m 755 /etc/apt/keyrings \
 	&& wget https://github.com/fastly/cli/releases/download/v14.2.0/fastly_14.2.0_linux_amd64.deb \
 	&& apt install ./fastly_14.2.0_linux_amd64.deb \
 	&& rm fastly_14.2.0_linux_amd64.deb
+# Voice mode captures through ALSA (arecord, or sox `rec` as fallback), but the
+# host runs PipeWire and owns the real devices, so cclaude hands over the
+# pipewire-pulse socket instead. Point ALSA's default device at it.
+RUN apt -y update && apt -y install alsa-utils libasound2-plugins libsox-fmt-pulse pulseaudio-utils \
+	&& printf 'pcm.!default { type pulse }\nctl.!default { type pulse }\n' > /etc/asound.conf
 COPY entrypoint /usr/local/bin/
 ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/entrypoint"]
 CMD ["--allow-dangerously-skip-permissions"]

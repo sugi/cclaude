@@ -4,12 +4,18 @@ image=reg.nemui.org/cclaude/cclaude
 
 volumes=()
 
+# PipeWire holds the host's ALSA devices, so --device /dev/snd can't reach the
+# mic. Relay the pipewire-pulse socket instead; the image's /etc/asound.conf
+# points ALSA's default device at it.
+pulse_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pulse/native"
+[ -S "$pulse_socket" ] || pulse_socket=""
+
 for t in /etc/passwd:ro /etc/group:ro \
 	~/.claude.json ~/.claude ~/.local/share/claude ~/.local/bin:ro ~/.agents \
 	~/.gitconfig:ro ~/.config/ccstatusline:ro ~/.config/gh:ro ~/.cache/ms-playwright \
 	~/.nodenv ~/.rustup ~/.rbenv ~/.bun ~/.cargo ~/.npm ~/.inputrc:ro ~/lib/node_modules \
 	/run/user/$(id -u)/bus:ro ${SSH_AUTH_SOCK} ~/.ssh/known_hosts:ro ${TMUX} \
-	~/.codex ${CCLAUDE_VOLUMES} \
+	~/.codex ${pulse_socket} ${CCLAUDE_VOLUMES} \
 	; do
   path="${t%%:*}"
   if [ -z "$path" ]; then
@@ -29,6 +35,11 @@ if [ -n "$winid" ]; then
   winenv=(-e CLAUDE_WIN_ID="$winid")
 fi
 
+pulseenv=()
+if [ -n "$pulse_socket" ]; then
+  pulseenv=(-e "PULSE_SERVER=unix:$pulse_socket")
+fi
+
 export HERDR_AGENT=claude
 exec docker run -w "$PWD" -v "$PWD:$PWD" \
   --device /dev/kvm --device /dev/snd \
@@ -41,7 +52,7 @@ exec docker run -w "$PWD" -v "$PWD:$PWD" \
   -e ANTHROPIC_DEFAULT_OPUS_MODEL -e ANTHROPIC_DEFAULT_SONNET_MODEL \
   -e ANTHROPIC_DEFAULT_HAIKU_MODEL -e ANTHROPIC_DEFAULT_FABLE_MODEL \
   -e TZ="$(timedatectl show --property=Timezone --value)" \
-  "${winenv[@]}" \
+  "${winenv[@]}" "${pulseenv[@]}" \
   --rm -it "${volumes[@]}" \
   "$image" "${@}"
 
