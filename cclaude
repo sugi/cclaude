@@ -31,6 +31,7 @@ if [ "$agent" = codex ]; then
   approval_explicit=false
   args=("$@")
   parser_mode=root
+  parser_error=""
 
   for ((i = 0; i < ${#args[@]}; i++)); do
     arg="${args[i]}"
@@ -43,17 +44,21 @@ if [ "$agent" = codex ]; then
         continue
         ;;
       --sandbox|-s)
-        if ((i + 1 < ${#args[@]})); then
+        if ((i + 1 < ${#args[@]})) && [[ -n "${args[i + 1]}" && "${args[i + 1]}" != -- && "${args[i + 1]}" != -* ]]; then
           sandbox_explicit=true
           sandbox_value="${args[i + 1]}"
           ((i += 1))
           continue
         fi
+        parser_error="missing value for $arg"
         break
         ;;
       --sandbox=*|-s=*)
         sandbox_value="${arg#*=}"
-        [ -n "$sandbox_value" ] || break
+        if [ -z "$sandbox_value" ]; then
+          parser_error="missing value for $arg"
+          break
+        fi
         sandbox_explicit=true
         continue
         ;;
@@ -63,15 +68,19 @@ if [ "$agent" = codex ]; then
         continue
         ;;
       --ask-for-approval|-a)
-        if ((i + 1 < ${#args[@]})); then
+        if ((i + 1 < ${#args[@]})) && [[ -n "${args[i + 1]}" && "${args[i + 1]}" != -- && "${args[i + 1]}" != -* ]]; then
           approval_explicit=true
           ((i += 1))
           continue
         fi
+        parser_error="missing value for $arg"
         break
         ;;
       --ask-for-approval=*|-a=*)
-        [ -n "${arg#*=}" ] || break
+        if [ -z "${arg#*=}" ]; then
+          parser_error="missing value for $arg"
+          break
+        fi
         approval_explicit=true
         continue
         ;;
@@ -83,32 +92,59 @@ if [ "$agent" = codex ]; then
 
     case "$arg" in
       --image|-i)
-        ((i + 1 < ${#args[@]})) || break
-        [[ "${args[i + 1]}" != -- && "${args[i + 1]}" != -* ]] || break
+        if ((i + 1 >= ${#args[@]})) || [[ -z "${args[i + 1]}" || "${args[i + 1]}" = -- || "${args[i + 1]}" = -* ]]; then
+          parser_error="missing value for $arg"
+          break
+        fi
         while ((i + 1 < ${#args[@]})) && [[ "${args[i + 1]}" != -- && "${args[i + 1]}" != -* ]]; do
+          if [ -z "${args[i + 1]}" ]; then
+            parser_error="missing value for $arg"
+            break
+          fi
           ((i += 1))
         done
+        [ -z "$parser_error" ] || break
         continue
         ;;
       --image=*|-i?*)
-        [ -n "${arg#*=}" ] || break
+        if [ -z "${arg#*=}" ]; then
+          parser_error="missing value for $arg"
+          break
+        fi
         while ((i + 1 < ${#args[@]})) && [[ "${args[i + 1]}" != -- && "${args[i + 1]}" != -* ]]; do
+          if [ -z "${args[i + 1]}" ]; then
+            parser_error="missing value for $arg"
+            break
+          fi
           ((i += 1))
         done
+        [ -z "$parser_error" ] || break
         continue
         ;;
       --config|--enable|--disable|--remote|--remote-auth-token-env|--model|--local-provider|--profile|--cd|--add-dir|--output-schema|--color|--output-last-message|-c|-m|-p|-C|-o)
-        ((i + 1 < ${#args[@]})) || break
+        if ((i + 1 >= ${#args[@]})) || [[ -z "${args[i + 1]}" || "${args[i + 1]}" = -- || "${args[i + 1]}" = -* ]]; then
+          parser_error="missing value for $arg"
+          break
+        fi
         ((i += 1))
         continue
         ;;
       --config=*|--enable=*|--disable=*|--remote=*|--remote-auth-token-env=*|--model=*|--local-provider=*|--profile=*|--cd=*|--add-dir=*|--output-schema=*|--color=*|--output-last-message=*|-c?*|-m?*|-p?*|-C?*|-o?*)
+        if [ -z "${arg#*=}" ]; then
+          parser_error="missing value for $arg"
+          break
+        fi
         continue
         ;;
-      --oss|--strict-config|--approve-for-me|--dangerously-bypass-hook-trust|--search|--no-alt-screen|--skip-git-repo-check|--ephemeral|--ignore-user-config|--ignore-rules|--json|--last|--all|--include-non-interactive|-h|--help|-V|--version)
+      -)
+        [ "$parser_mode" != root ] || parser_mode=interactive
+        continue
+        ;;
+      --oss|--strict-config|--approve-for-me|--dangerously-bypass-hook-trust|--search|--no-alt-screen|--skip-git-repo-check|--ephemeral|--ignore-user-config|--ignore-rules|--json|--last|--all|--include-non-interactive|--psp|-h|--help|-V|--version)
         continue
         ;;
       -*)
+        parser_error="unknown or ambiguous option: $arg"
         break
         ;;
     esac
@@ -125,6 +161,11 @@ if [ "$agent" = codex ]; then
         ;;
     esac
   done
+
+  if [ -n "$parser_error" ]; then
+    printf 'ccodex: cannot safely classify Codex arguments: %s\n' "$parser_error" >&2
+    exit 2
+  fi
 
   if [ "$bypass" = true ]; then
     container_args=(codex "$@")
