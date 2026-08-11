@@ -3,7 +3,7 @@
 cmd=claude
 
 case "$1" in
-  bash|/bin/bash|bunx|npx)
+  bash|/bin/bash|bunx|npx|codex)
     cmd="$1"
     shift
     ;;

@@ -1,6 +1,6 @@
 FROM debian
 
-RUN apt -y update && apt -y upgrade && apt -y install curl lsof procps findutils ripgrep wget build-essential cmake rustup tini git sudo jq sox python3 python-is-python3 python3-yaml libssl-dev pkg-config tmux qdbus-qt6 libnotify-bin \
+RUN apt -y update && apt -y upgrade && apt -y install curl lsof procps findutils ripgrep wget build-essential cmake rustup tini git sudo jq sox python3 python-is-python3 python3-yaml libssl-dev pkg-config tmux qdbus-qt6 libnotify-bin nodejs \
 libnspr4 libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libatspi2.0-0t64 \
   libcups2t64 libgbm1 libxkbcommon0 libcairo2 libpango-1.0-0 \
   libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxi6 \
