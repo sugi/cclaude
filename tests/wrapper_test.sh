@@ -70,6 +70,10 @@ contains_arg seccomp=unconfined || fail "never mode lost inner sandbox support"
 contains_arg never || fail "never approval option missing"
 not_contains_arg on-request || fail "default approval conflicts with explicit policy"
 
+run_wrapper "$repo_dir/ccodex" -a --yolo
+contains_arg seccomp=unconfined || fail "approval value was reinterpreted as yolo"
+contains_arg apparmor=unconfined || fail "approval value disabled Docker AppArmor"
+
 run_wrapper "$repo_dir/ccodex" --dangerously-bypass-approvals-and-sandbox
 not_contains_arg seccomp=unconfined || fail "bypass disabled Docker seccomp"
 not_contains_arg apparmor=unconfined || fail "bypass disabled Docker AppArmor"
