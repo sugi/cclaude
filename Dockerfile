@@ -4,7 +4,7 @@ RUN apt -y update && apt -y upgrade && apt -y install curl lsof procps findutils
 libnspr4 libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libatspi2.0-0t64 \
   libcups2t64 libgbm1 libxkbcommon0 libcairo2 libpango-1.0-0 \
   libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxi6 \
-  fonts-dejavu-core fonts-liberation golang bc sqlite3
+  fonts-dejavu-core fonts-liberation golang bc sqlite3 git-filter-repo
 RUN sudo mkdir -p -m 755 /etc/apt/keyrings \
 	&& out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 	&& cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
