@@ -252,6 +252,8 @@ if [ -n "$pulse_socket" ]; then
   pulseenv=(-e "PULSE_SERVER=unix:$pulse_socket")
 fi
 
+export HERDR_AGENT="$agent"
+
 exec docker run -w "$PWD" -v "$PWD:$PWD" \
   --device /dev/kvm --device /dev/snd \
   -e LANG -e LANGUAGE -e LC_CTYPE -e LC_NUMERIC -e LC_TIME -e LC_COLLATE -e LC_MONETARY -e LC_MESSAGES \
@@ -263,7 +265,6 @@ exec docker run -w "$PWD" -v "$PWD:$PWD" \
   -e ANTHROPIC_DEFAULT_OPUS_MODEL -e ANTHROPIC_DEFAULT_SONNET_MODEL \
   -e ANTHROPIC_DEFAULT_HAIKU_MODEL -e ANTHROPIC_DEFAULT_FABLE_MODEL \
   -e TZ="$(timedatectl show --property=Timezone --value)" \
-  -e HERDR_AGENT="$agent" \
   "${winenv[@]}" "${pulseenv[@]}" \
   "${docker_security[@]}" --rm -it "${volumes[@]}" \
   "$image" "${container_args[@]}"
