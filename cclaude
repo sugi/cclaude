@@ -11,8 +11,6 @@ case "$agent" in
     ;;
 esac
 
-docker_security=()
-codex_defaults=()
 container_args=("$@")
 
 if [ "$agent" = codex ]; then
@@ -24,194 +22,7 @@ if [ "$agent" = codex ]; then
       exit 127
       ;;
   esac
-
-  bypass=false
-  sandbox_explicit=false
-  sandbox_value=""
-  approval_explicit=false
-  args=("$@")
-  parser_mode=root
-  parser_error=""
-
-  for ((i = 0; i < ${#args[@]}; i++)); do
-    arg="${args[i]}"
-
-    [ "$arg" = -- ] && break
-
-    case "$arg" in
-      --dangerously-bypass-approvals-and-sandbox|--yolo)
-        bypass=true
-        continue
-        ;;
-      --sandbox|-s)
-        if ((i + 1 < ${#args[@]})) && [[ -n "${args[i + 1]}" && "${args[i + 1]}" != -- && "${args[i + 1]}" != -* ]]; then
-          sandbox_explicit=true
-          sandbox_value="${args[i + 1]}"
-          ((i += 1))
-          continue
-        fi
-        parser_error="missing value for $arg"
-        break
-        ;;
-      --sandbox=*|-s=*)
-        sandbox_value="${arg#*=}"
-        if [ -z "$sandbox_value" ]; then
-          parser_error="missing value for $arg"
-          break
-        fi
-        sandbox_explicit=true
-        continue
-        ;;
-      -s?*)
-        sandbox_explicit=true
-        sandbox_value="${arg:2}"
-        continue
-        ;;
-      --ask-for-approval|-a)
-        if ((i + 1 < ${#args[@]})) && [[ -n "${args[i + 1]}" && "${args[i + 1]}" != -- && "${args[i + 1]}" != -* ]]; then
-          approval_explicit=true
-          ((i += 1))
-          continue
-        fi
-        parser_error="missing value for $arg"
-        break
-        ;;
-      --ask-for-approval=*|-a=*)
-        if [ -z "${arg#*=}" ]; then
-          parser_error="missing value for $arg"
-          break
-        fi
-        approval_explicit=true
-        continue
-        ;;
-      -a?*)
-        approval_explicit=true
-        continue
-        ;;
-    esac
-
-    case "$arg" in
-      --image|-i)
-        if ((i + 1 >= ${#args[@]})) || [[ -z "${args[i + 1]}" || "${args[i + 1]}" = -- || ( "${args[i + 1]}" = -* && "${args[i + 1]}" != - ) ]]; then
-          parser_error="missing value for $arg"
-          break
-        fi
-        while ((i + 1 < ${#args[@]})) && [[ "${args[i + 1]}" != -- && ( "${args[i + 1]}" = - || "${args[i + 1]}" != -* ) ]]; do
-          if [ -z "${args[i + 1]}" ]; then
-            parser_error="missing value for $arg"
-            break
-          fi
-          ((i += 1))
-        done
-        [ -z "$parser_error" ] || break
-        continue
-        ;;
-      --image=*|-i?*)
-        if [ -z "${arg#*=}" ]; then
-          parser_error="missing value for $arg"
-          break
-        fi
-        while ((i + 1 < ${#args[@]})) && [[ "${args[i + 1]}" != -- && ( "${args[i + 1]}" = - || "${args[i + 1]}" != -* ) ]]; do
-          if [ -z "${args[i + 1]}" ]; then
-            parser_error="missing value for $arg"
-            break
-          fi
-          ((i += 1))
-        done
-        [ -z "$parser_error" ] || break
-        continue
-        ;;
-      --config|--enable|--disable|--remote|--remote-auth-token-env|--model|--local-provider|--profile|--cd|--add-dir|--output-schema|--color|--output-last-message|-c|-m|-p|-C|-o)
-        if ((i + 1 >= ${#args[@]})) || [[ -z "${args[i + 1]}" || "${args[i + 1]}" = -- || ( "${args[i + 1]}" = -* && "${args[i + 1]}" != - ) ]]; then
-          parser_error="missing value for $arg"
-          break
-        fi
-        ((i += 1))
-        continue
-        ;;
-      --uncommitted)
-        if [ "$parser_mode" = exec_review ]; then
-          continue
-        fi
-        parser_error="unknown or ambiguous option: $arg"
-        break
-        ;;
-      --base|--commit|--title)
-        if [ "$parser_mode" = exec_review ] && ((i + 1 < ${#args[@]})) && [[ -n "${args[i + 1]}" && "${args[i + 1]}" != -- && ( "${args[i + 1]}" = - || "${args[i + 1]}" != -* ) ]]; then
-          ((i += 1))
-          continue
-        fi
-        parser_error="missing or unsupported value for $arg"
-        break
-        ;;
-      --base=*|--commit=*|--title=*)
-        if [ "$parser_mode" = exec_review ] && [ -n "${arg#*=}" ]; then
-          continue
-        fi
-        parser_error="missing or unsupported value for $arg"
-        break
-        ;;
-      --config=*|--enable=*|--disable=*|--remote=*|--remote-auth-token-env=*|--model=*|--local-provider=*|--profile=*|--cd=*|--add-dir=*|--output-schema=*|--color=*|--output-last-message=*|-c?*|-m?*|-p?*|-C?*|-o?*)
-        if [ -z "${arg#*=}" ]; then
-          parser_error="missing value for $arg"
-          break
-        fi
-        continue
-        ;;
-      -)
-        [ "$parser_mode" != root ] || parser_mode=interactive
-        continue
-        ;;
-      --oss|--strict-config|--approve-for-me|--dangerously-bypass-hook-trust|--search|--no-alt-screen|--skip-git-repo-check|--ephemeral|--ignore-user-config|--ignore-rules|--json|--last|--all|--include-non-interactive|--psp|-h|--help|-V|--version)
-        continue
-        ;;
-      -*)
-        parser_error="unknown or ambiguous option: $arg"
-        break
-        ;;
-    esac
-
-    case "$parser_mode:$arg" in
-      root:exec)
-        parser_mode=exec
-        ;;
-      root:resume|root:fork)
-        parser_mode=agent
-        ;;
-      exec:review)
-        parser_mode=exec_review
-        ;;
-      root:review|root:login|root:logout|root:mcp|root:plugin|root:mcp-server|root:app-server|root:remote-control|root:completion|root:update|root:doctor|root:sandbox|root:debug|root:apply|root:archive|root:delete|root:unarchive|root:cloud|root:exec-server|root:features|root:help)
-        break
-        ;;
-      root:*)
-        parser_mode=interactive
-        ;;
-    esac
-  done
-
-  if [ -n "$parser_error" ]; then
-    printf 'ccodex: cannot safely classify Codex arguments: %s\n' "$parser_error" >&2
-    exit 2
-  fi
-
-  if [ "$bypass" = true ]; then
-    container_args=(codex "$@")
-  else
-    if [ "$sandbox_explicit" = false ]; then
-      codex_defaults+=(--sandbox workspace-write)
-    fi
-    if [ "$approval_explicit" = false ]; then
-      codex_defaults+=(--ask-for-approval on-request)
-    fi
-    if [ "$sandbox_value" != danger-full-access ]; then
-      docker_security=(
-        --security-opt seccomp=unconfined
-        --security-opt apparmor=unconfined
-      )
-    fi
-    container_args=(codex "${codex_defaults[@]}" "$@")
-  fi
+  container_args=(codex "$@")
 fi
 
 volumes=()
@@ -266,7 +77,8 @@ exec docker run -w "$PWD" -v "$PWD:$PWD" \
   -e ANTHROPIC_DEFAULT_HAIKU_MODEL -e ANTHROPIC_DEFAULT_FABLE_MODEL \
   -e TZ="$(timedatectl show --property=Timezone --value)" \
   "${winenv[@]}" "${pulseenv[@]}" \
-  "${docker_security[@]}" --rm -it "${volumes[@]}" \
+  --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
+  --rm -it "${volumes[@]}" \
   "$image" "${container_args[@]}"
 
 # vim: set sts=2 sw=2:
