@@ -37,6 +37,7 @@ for t in /etc/passwd:ro /etc/group:ro \
 	~/.claude.json ~/.claude ~/.local/share/claude ~/.local/bin:ro ~/.agents \
 	~/.gitconfig:ro ~/.config/ccstatusline:ro ~/.config/gh:ro ~/.cache/ms-playwright \
 	~/.nodenv ~/.rustup ~/.rbenv ~/.bun ~/.cargo ~/.npm ~/.inputrc:ro ~/lib/node_modules \
+	~/.local/share/pnpm \
 	/run/user/$(id -u)/bus:ro ${SSH_AUTH_SOCK} ~/.ssh/known_hosts:ro ${TMUX} \
 	~/.codex ${pulse_socket} ${CCLAUDE_VOLUMES} \
 	; do
