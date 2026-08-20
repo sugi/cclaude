@@ -1,0 +1,30 @@
+#!/bin/sh
+# Compose talks to a Podman API socket, and podman-docker points DOCKER_HOST at
+# one, but nothing here starts the service behind it: the container has no
+# systemd to socket-activate it. Bring it up on first use.
+
+case "${DOCKER_HOST-}" in
+  unix://*)
+    socket="${DOCKER_HOST#unix://}"
+    ;;
+  "")
+    socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/podman/podman.sock"
+    DOCKER_HOST="unix://$socket"
+    export DOCKER_HOST
+    ;;
+  *)
+    socket=""
+    ;;
+esac
+
+if [ -n "$socket" ] && [ ! -S "$socket" ]; then
+  mkdir -p "$(dirname "$socket")"
+  podman system service --time=0 "unix://$socket" >/dev/null 2>&1 &
+  waited=0
+  while [ ! -S "$socket" ] && [ "$waited" -lt 100 ]; do
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+fi
+
+exec /usr/libexec/docker/cli-plugins/docker-compose "$@"

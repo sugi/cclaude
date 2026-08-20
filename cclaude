@@ -33,6 +33,13 @@ volumes=()
 pulse_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pulse/native"
 [ -S "$pulse_socket" ] || pulse_socket=""
 
+# Rootless Podman's image store has to outlive --rm, and its overlay upperdir
+# cannot sit on the container's own overlay, so keep it on the host. It stays
+# out of ~/.local/share/containers: the host's own Podman keeps its store there
+# under a different id mapping, and the two would copy layers past each other.
+podman_store="$HOME/.local/share/cclaude/containers"
+mkdir -p "$podman_store"
+
 for t in /etc/passwd:ro /etc/group:ro \
 	~/.claude.json ~/.claude ~/.local/share/claude ~/.local/bin:ro ~/.agents \
 	~/.gitconfig:ro ~/.config/ccstatusline:ro ~/.config/gh:ro ~/.cache/ms-playwright \
@@ -64,6 +71,11 @@ if [ -n "$pulse_socket" ]; then
   pulseenv=(-e "PULSE_SERVER=unix:$pulse_socket")
 fi
 
+# pasta wires up the network for the containers Podman starts, and opens the
+# tun device to do it.
+tundev=()
+[ -c /dev/net/tun ] && tundev=(--device /dev/net/tun)
+
 export HERDR_AGENT="$agent"
 
 # Claude Code's sandbox runs bubblewrap, which needs unprivileged user
@@ -72,6 +84,14 @@ export HERDR_AGENT="$agent"
 # seccomp=unconfined, deny the syscalls that have no use here: the list below
 # is Docker's own default denials minus the namespace and mount group.
 # (Codex sandboxes with Landlock instead and needs none of this.)
+#
+# Rootless Podman needs three relaxations on top: CAP_SYS_ADMIN, without which
+# newuidmap cannot write a uid_map for a namespace it does not own; unconfined
+# system paths, because a masked /proc blocks the nested procfs mount and a
+# read-only /proc/sys blocks crun's sysctls; and sethostname/setdomainname,
+# which the list below therefore leaves alone. The capability lands in the
+# bounding set only: the entrypoint drops to the user, which clears the
+# effective and permitted sets.
 seccomp_profile=$(cat <<'JSON'
 {
   "defaultAction": "SCMP_ACT_ALLOW",
@@ -134,8 +154,6 @@ seccomp_profile=$(cat <<'JSON'
       "io_uring_register"
     ] },
     { "action": "SCMP_ACT_ERRNO", "errnoRet": 1, "names": [
-      "sethostname",
-      "setdomainname",
       "settimeofday",
       "clock_settime",
       "syslog",
@@ -160,7 +178,7 @@ JSON
 )
 
 exec docker run -w "$PWD" -v "$PWD:$PWD" \
-  --device /dev/kvm --device /dev/snd \
+  --device /dev/kvm --device /dev/snd "${tundev[@]}" \
   -e LANG -e LANGUAGE -e LC_CTYPE -e LC_NUMERIC -e LC_TIME -e LC_COLLATE -e LC_MONETARY -e LC_MESSAGES \
   -e LC_PAPER -e LC_NAME -e LC_ADDRESS -e LC_TELEPHONE -e LC_MEASUREMENT -e LC_IDENTIFICATION -e LC_ALL \
   -e PATH -e COLORTERM -e TERM -e DBUS_SESSION_BUS_ADDRESS -e USER -e HOME -e SSH_AUTH_SOCK \
@@ -172,7 +190,8 @@ exec docker run -w "$PWD" -v "$PWD:$PWD" \
   -e TZ="$(timedatectl show --property=Timezone --value)" \
   "${winenv[@]}" "${pulseenv[@]}" \
   --security-opt seccomp=<(printf '%s' "$seccomp_profile") --security-opt apparmor=unconfined \
-  --rm -it "${volumes[@]}" \
+  --security-opt systempaths=unconfined --cap-add SYS_ADMIN \
+  --rm -it "${volumes[@]}" -v "$podman_store:$HOME/.local/share/containers" \
   "$image" "${container_args[@]}"
 
 # vim: set sts=2 sw=2:

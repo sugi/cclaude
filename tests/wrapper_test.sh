@@ -69,8 +69,10 @@ assert_seccomp_denylist() {
   for syscall in bpf init_module io_uring_setup keyctl perf_event_open userfaultfd; do
     [[ "$profile" == *"\"$syscall\""* ]] || fail "$label seccomp profile no longer denies $syscall"
   done
-  # The nested sandboxes need these; denying them defeats the point of the profile.
-  for syscall in clone3 mount pivot_root setns unshare; do
+  # The nested sandboxes need these; denying them defeats the point of the
+  # profile. sethostname/setdomainname belong here too: the container runtime
+  # Podman drives sets a hostname inside its own UTS namespace.
+  for syscall in clone3 mount pivot_root setns unshare sethostname setdomainname; do
     [[ "$profile" != *"\"$syscall\""* ]] || fail "$label seccomp profile denies $syscall"
   done
 }
@@ -111,6 +113,14 @@ run_wrapper "$repo_dir/cclaude" --version
 contains_arg reg.nemui.org/cclaude/cclaude || fail "Claude image missing"
 assert_seccomp_denylist Claude
 contains_arg apparmor=unconfined || fail "Claude AppArmor compatibility option missing"
+contains_arg SYS_ADMIN || fail "Claude container cannot map subordinate ids without CAP_SYS_ADMIN"
+contains_arg systempaths=unconfined ||
+  fail "Claude container keeps the masked /proc that blocks nested procfs mounts"
+contains_arg "$test_home/.local/share/cclaude/containers:$test_home/.local/share/containers" ||
+  fail "Podman image store is not mounted from the host"
+if [[ -c /dev/net/tun ]]; then
+  contains_arg /dev/net/tun || fail "pasta has no tun device to give containers a network"
+fi
 not_contains_arg HERDR_AGENT || fail "Claude forwarded HERDR_AGENT to the container"
 assert_docker_env claude
 assert_tail reg.nemui.org/cclaude/cclaude --version

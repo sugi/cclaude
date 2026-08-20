@@ -19,7 +19,33 @@ if [ '!' -z "$USER" ]; then
   if [ -e "$HOME/.ssh" ]; then
     chmod 700 "$HOME/.ssh"
   fi
-  exec sudo -E -u "$USER" env "PATH=$PATH" "$cmd" "${@}"
+  if [ "$(id -u)" = 0 ]; then
+    # Docker created /run/user/<uid> as root to hold the bus mount, and Podman
+    # keeps its runtime state there.
+    runtime_dir="/run/user/$(id -u "$USER")"
+    if [ -d "$runtime_dir" ]; then
+      chown "$USER" "$runtime_dir"
+      chmod 700 "$runtime_dir"
+    fi
+    # Rootless Podman maps container ids onto a subordinate range. The host's
+    # /etc/passwd is bind-mounted, so the range can't be baked into the image.
+    if ! grep -q "^$USER:" /etc/subuid 2>/dev/null; then
+      printf '%s:100000:65536\n' "$USER" >> /etc/subuid
+      printf '%s:100000:65536\n' "$USER" >> /etc/subgid
+    fi
+    # Podman propagates the mounts it sets up for a container through /. This
+    # needs the capability the wrapper grants, so tolerate its absence.
+    mount --make-rshared / 2>/dev/null
+  fi
+  # setuid newuidmap needs SYS_ADMIN together with SETUID/SETGID to write a
+  # multi-range uid_map, and DAC_OVERRIDE to open the user-owned
+  # /proc/<pid>/uid_map. It and newgidmap are the image's only setuid binaries,
+  # so pinning the bounding set here leaves no other route to a capability.
+  # Containers Podman starts are unaffected: a new user namespace resets the
+  # bounding set to the full one.
+  exec setpriv --reuid="$USER" --regid="$(id -g "$USER")" --init-groups \
+    --bounding-set=-all,+sys_admin,+setuid,+setgid,+dac_override \
+    -- "$cmd" "${@}"
 else
   exec "$cmd" "${@}"
 fi
