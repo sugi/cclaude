@@ -27,8 +27,11 @@ configuration (including Claude/Codex state, git/gh configuration, and
 language toolchains).
 
 The wrapper passes Codex arguments through unchanged and leaves its approval
-and sandbox policy to Codex. Docker seccomp and AppArmor are relaxed for both
-Claude and Codex so their nested sandboxes can run inside the container.
+and sandbox policy to Codex. Claude Code sandboxes with bubblewrap, which needs
+unprivileged user namespaces, so the wrapper turns off Docker's AppArmor profile
+and swaps its seccomp profile for a denylist carrying Docker's own default
+denials minus the namespace and mount syscalls. Codex sandboxes with Landlock
+and needs neither.
 
 The container is not a security boundary for its mounts. Either CLI can read
 mounted credentials and sockets, interact with mounted devices and reachable

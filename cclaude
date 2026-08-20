@@ -66,6 +66,99 @@ fi
 
 export HERDR_AGENT="$agent"
 
+# Claude Code's sandbox runs bubblewrap, which needs unprivileged user
+# namespaces plus mount/pivot_root. Docker's default seccomp profile and
+# AppArmor profile both block those, so relax them. Rather than
+# seccomp=unconfined, deny the syscalls that have no use here: the list below
+# is Docker's own default denials minus the namespace and mount group.
+# (Codex sandboxes with Landlock instead and needs none of this.)
+seccomp_profile=$(cat <<'JSON'
+{
+  "defaultAction": "SCMP_ACT_ALLOW",
+  "architectures": ["SCMP_ARCH_X86_64", "SCMP_ARCH_X86", "SCMP_ARCH_X32", "SCMP_ARCH_AARCH64", "SCMP_ARCH_ARM"],
+  "syscalls": [
+    { "action": "SCMP_ACT_ERRNO", "errnoRet": 1, "names": [
+      "init_module",
+      "finit_module",
+      "delete_module",
+      "create_module",
+      "query_module",
+      "get_kernel_syms",
+      "kexec_load",
+      "kexec_file_load",
+      "reboot",
+      "iopl",
+      "ioperm",
+      "swapon",
+      "swapoff",
+      "acct",
+      "uselib",
+      "nfsservctl",
+      "_sysctl",
+      "sysfs",
+      "ustat",
+      "vhangup",
+      "afs_syscall",
+      "tuxcall",
+      "vserver",
+      "security",
+      "getpmsg",
+      "putpmsg"
+    ] },
+    { "action": "SCMP_ACT_ERRNO", "errnoRet": 1, "names": [
+      "bpf",
+      "perf_event_open",
+      "uprobe",
+      "lookup_dcookie",
+      "kcmp",
+      "pidfd_getfd",
+      "process_madvise",
+      "open_by_handle_at",
+      "open_tree_attr",
+      "listns",
+      "lsm_get_self_attr",
+      "lsm_set_self_attr",
+      "lsm_list_modules",
+      "file_getattr",
+      "file_setattr"
+    ] },
+    { "action": "SCMP_ACT_ERRNO", "errnoRet": 1, "names": [
+      "keyctl",
+      "add_key",
+      "request_key"
+    ] },
+    { "action": "SCMP_ACT_ERRNO", "errnoRet": 1, "names": [
+      "userfaultfd",
+      "io_uring_setup",
+      "io_uring_enter",
+      "io_uring_register"
+    ] },
+    { "action": "SCMP_ACT_ERRNO", "errnoRet": 1, "names": [
+      "sethostname",
+      "setdomainname",
+      "settimeofday",
+      "clock_settime",
+      "syslog",
+      "quotactl",
+      "quotactl_fd",
+      "fanotify_init"
+    ] },
+    { "action": "SCMP_ACT_ERRNO", "errnoRet": 1, "names": [
+      "mbind",
+      "migrate_pages",
+      "move_pages",
+      "get_mempolicy",
+      "set_mempolicy",
+      "set_mempolicy_home_node"
+    ] },
+    { "action": "SCMP_ACT_ERRNO", "errnoRet": 1, "names": [
+      "rseq_slice_yield"
+    ] }
+  ]
+}
+JSON
+)
+
 exec docker run -w "$PWD" -v "$PWD:$PWD" \
   --device /dev/kvm --device /dev/snd \
   -e LANG -e LANGUAGE -e LC_CTYPE -e LC_NUMERIC -e LC_TIME -e LC_COLLATE -e LC_MONETARY -e LC_MESSAGES \
@@ -78,7 +171,7 @@ exec docker run -w "$PWD" -v "$PWD:$PWD" \
   -e ANTHROPIC_DEFAULT_HAIKU_MODEL -e ANTHROPIC_DEFAULT_FABLE_MODEL \
   -e TZ="$(timedatectl show --property=Timezone --value)" \
   "${winenv[@]}" "${pulseenv[@]}" \
-  --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
+  --security-opt seccomp=<(printf '%s' "$seccomp_profile") --security-opt apparmor=unconfined \
   --rm -it "${volumes[@]}" \
   "$image" "${container_args[@]}"
 
