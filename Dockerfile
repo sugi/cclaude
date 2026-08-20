@@ -6,8 +6,7 @@ libnspr4 libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libatspi2.0-0t64 \
   libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxi6 \
   fonts-dejavu-core fonts-liberation golang bc sqlite3 git-filter-repo bubblewrap
 RUN mkdir -p -m 755 /etc/apt/keyrings \
-	&& out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-	&& cat $out > /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+	&& wget -nv -O /etc/apt/keyrings/githubcli-archive-keyring.gpg https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 	&& chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
 	&& mkdir -p -m 755 /etc/apt/sources.list.d \
 	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list \
