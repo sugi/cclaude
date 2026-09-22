@@ -138,4 +138,23 @@ assert_tail reg.nemui.org/cclaude/cclaude codex exec -- --yolo
 run_wrapper "$repo_dir/ccodex" --future-option --sandbox danger-full-access
 assert_tail reg.nemui.org/cclaude/cclaude codex --future-option --sandbox danger-full-access
 
+# The compositor socket resolves through XDG_RUNTIME_DIR, so stand up a fake one
+# rather than reaching into the developer's live session.
+export XDG_RUNTIME_DIR="$test_dir/run"
+export WAYLAND_DISPLAY=wayland-9
+mkdir -p "$XDG_RUNTIME_DIR"
+python3 -c 'import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' \
+  "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
+
+run_wrapper "$repo_dir/cclaude" --version
+contains_arg "$XDG_RUNTIME_DIR/wayland-9:$XDG_RUNTIME_DIR/wayland-9" ||
+  fail "Wayland socket is not mounted, so image paste cannot reach the clipboard"
+contains_arg "WAYLAND_DISPLAY=$XDG_RUNTIME_DIR/wayland-9" ||
+  fail "Container is not pointed at the mounted Wayland socket"
+
+rm "$XDG_RUNTIME_DIR/wayland-9"
+run_wrapper "$repo_dir/cclaude" --version
+not_contains_arg "WAYLAND_DISPLAY=$XDG_RUNTIME_DIR/wayland-9" ||
+  fail "Wrapper points the container at a compositor socket that is not there"
+
 printf 'wrapper tests passed\n'

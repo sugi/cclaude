@@ -33,6 +33,16 @@ and swaps its seccomp profile for a denylist carrying Docker's own default
 denials minus the namespace and mount group. Codex sandboxes with Landlock
 and needs neither.
 
+## Clipboard
+
+Image paste reaches the host clipboard. Claude Code reads it by shelling out to
+`xclip` and then `wl-paste`, so the image carries wl-clipboard and the wrapper
+mounts the Wayland session's socket, pointing the container at it with an
+absolute `WAYLAND_DISPLAY` so no `XDG_RUNTIME_DIR` has to be invented inside.
+KWin implements the data-control protocol, which lets the container read the
+clipboard without holding focus. On an X11 session the same paste would need
+`xclip` and `/tmp/.X11-unix`, neither of which the wrapper provides.
+
 ## Containers inside the container
 
 `docker` is podman-docker over rootless Podman, and `docker compose` is
@@ -71,4 +81,5 @@ The container is not a security boundary for its mounts. Either CLI can read
 mounted credentials and sockets, interact with mounted devices and reachable
 network endpoints, and modify writable host content. In particular, writable
 language toolchains and global Node packages can be changed in the container
-and later executed on the host.
+and later executed on the host, and the compositor socket exposes the whole
+host clipboard, password-manager copies included, for reading and replacing.

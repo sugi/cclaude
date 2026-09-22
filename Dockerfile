@@ -28,6 +28,11 @@ RUN apt -y update && apt -y install podman podman-docker uidmap passt \
 	&& mkdir -p /etc/containers/containers.conf.d \
 	&& printf '[containers]\nkeyring = false\n\n[engine]\ncompose_providers = ["/usr/local/bin/docker-compose"]\ncompose_warning_logs = false\n' > /etc/containers/containers.conf.d/99-cclaude.conf
 COPY compose-launcher /usr/local/bin/docker-compose
+# Claude Code reads the clipboard through xclip first and wl-paste second. The
+# host session is Wayland, so wl-paste is the one that answers; xclip would
+# need an X display the container has no reason to see. wl-clipboard recommends
+# xdg-utils, which pulls in an X stack it only needs for guessing MIME types.
+RUN apt -y update && apt -y install --no-install-recommends wl-clipboard
 # The wrapper hands the container CAP_SYS_ADMIN so that newuidmap can write a
 # multi-range uid_map. Every other setuid binary would gain the same reach, and
 # none of them are needed here, so leave the id-mapping helpers as the only two.

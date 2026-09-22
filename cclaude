@@ -33,6 +33,17 @@ volumes=()
 pulse_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pulse/native"
 [ -S "$pulse_socket" ] || pulse_socket=""
 
+# Claude Code pastes images by shelling out to xclip and then wl-paste, so the
+# Wayland session's socket has to come along. KWin implements the data-control
+# protocol, which lets a client read the clipboard without holding focus. An
+# absolute WAYLAND_DISPLAY spares the container an XDG_RUNTIME_DIR of its own.
+wayland_socket="${WAYLAND_DISPLAY:-wayland-0}"
+case "$wayland_socket" in
+  /*) ;;
+  *) wayland_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/$wayland_socket" ;;
+esac
+[ -S "$wayland_socket" ] || wayland_socket=""
+
 # Rootless Podman's image store has to outlive --rm, and its overlay upperdir
 # cannot sit on the container's own overlay, so keep it on the host. It stays
 # out of ~/.local/share/containers: the host's own Podman keeps its store there
@@ -46,7 +57,7 @@ for t in /etc/passwd:ro /etc/group:ro \
 	~/.nodenv ~/.rustup ~/.rbenv ~/.bun ~/.cargo ~/.npm ~/.inputrc:ro ~/lib/node_modules \
 	~/.local/share/pnpm \
 	/run/user/$(id -u)/bus:ro ${SSH_AUTH_SOCK} ~/.ssh/known_hosts:ro ${TMUX} \
-	~/.codex ${pulse_socket} ${CCLAUDE_VOLUMES} \
+	~/.codex ${pulse_socket} ${wayland_socket} ${CCLAUDE_VOLUMES} \
 	; do
   path="${t%%:*}"
   if [ -z "$path" ]; then
@@ -69,6 +80,11 @@ fi
 pulseenv=()
 if [ -n "$pulse_socket" ]; then
   pulseenv=(-e "PULSE_SERVER=unix:$pulse_socket")
+fi
+
+waylandenv=()
+if [ -n "$wayland_socket" ]; then
+  waylandenv=(-e "WAYLAND_DISPLAY=$wayland_socket")
 fi
 
 # pasta wires up the network for the containers Podman starts, and opens the
@@ -188,7 +204,7 @@ exec docker run -w "$PWD" -v "$PWD:$PWD" \
   -e ANTHROPIC_DEFAULT_OPUS_MODEL -e ANTHROPIC_DEFAULT_SONNET_MODEL \
   -e ANTHROPIC_DEFAULT_HAIKU_MODEL -e ANTHROPIC_DEFAULT_FABLE_MODEL \
   -e TZ="$(timedatectl show --property=Timezone --value)" \
-  "${winenv[@]}" "${pulseenv[@]}" \
+  "${winenv[@]}" "${pulseenv[@]}" "${waylandenv[@]}" \
   --security-opt seccomp=<(printf '%s' "$seccomp_profile") --security-opt apparmor=unconfined \
   --security-opt systempaths=unconfined --cap-add SYS_ADMIN \
   --rm -it "${volumes[@]}" -v "$podman_store:$HOME/.local/share/containers" \
