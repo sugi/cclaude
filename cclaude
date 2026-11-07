@@ -4,7 +4,7 @@ image=reg.nemui.org/cclaude/cclaude
 
 agent="${CCLAUDE_AGENT:-claude}"
 case "$agent" in
-  claude|codex) ;;
+  claude|codex|agy) ;;
   *)
     printf 'unsupported agent: %s\n' "$agent" >&2
     exit 2
@@ -13,16 +13,16 @@ esac
 
 container_args=("$@")
 
-if [ "$agent" = codex ]; then
-  codex_path="$(command -v codex || true)"
-  case "$codex_path" in
+if [ "$agent" != claude ]; then
+  agent_path="$(command -v "$agent" || true)"
+  case "$agent_path" in
     "$HOME/.local/bin/"*|"$HOME/lib/node_modules/.bin/"*) ;;
     *)
-      printf 'ccodex: codex is not installed in a mounted command path\n' >&2
+      printf 'c%s: %s is not installed in a mounted command path\n' "$agent" "$agent" >&2
       exit 127
       ;;
   esac
-  container_args=(codex "$@")
+  container_args=("$agent" "$@")
 fi
 
 volumes=()
@@ -57,7 +57,7 @@ for t in /etc/passwd:ro /etc/group:ro \
 	~/.nodenv ~/.rustup ~/.rbenv ~/.bun ~/.cargo ~/.npm ~/.inputrc:ro ~/lib/node_modules \
 	~/.local/share/pnpm \
 	/run/user/$(id -u)/bus:ro ${SSH_AUTH_SOCK} ~/.ssh/known_hosts:ro ${TMUX} \
-	~/.codex ${pulse_socket} ${wayland_socket} ${CCLAUDE_VOLUMES} \
+	~/.codex ~/.gemini ${pulse_socket} ${wayland_socket} ${CCLAUDE_VOLUMES} \
 	; do
   path="${t%%:*}"
   if [ -z "$path" ]; then

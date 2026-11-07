@@ -10,13 +10,14 @@ fake_bin="$test_dir/bin"
 args_file="$test_dir/docker.args"
 env_file="$test_dir/docker.env"
 seccomp_file="$test_dir/docker.seccomp"
-mkdir -p "$test_home/lib/node_modules/.bin" "$fake_bin"
+mkdir -p "$test_home/lib/node_modules/.bin" "$test_home/.local/bin" "$test_home/.gemini" "$fake_bin"
 
 cat >"$test_home/lib/node_modules/.bin/codex" <<'EOF'
 #!/bin/sh
 exit 0
 EOF
 chmod +x "$test_home/lib/node_modules/.bin/codex"
+cp "$test_home/lib/node_modules/.bin/codex" "$test_home/.local/bin/agy"
 
 cat >"$fake_bin/docker" <<'EOF'
 #!/bin/bash
@@ -40,7 +41,7 @@ run_wrapper() {
   : >"$args_file"
   : >"$seccomp_file"
   HOME="$test_home" \
-    PATH="$test_home/lib/node_modules/.bin:$fake_bin:/usr/bin:/bin" \
+    PATH="$test_home/lib/node_modules/.bin:$test_home/.local/bin:$fake_bin:/usr/bin:/bin" \
     DOCKER_ARGS_FILE="$args_file" \
     DOCKER_ENV_FILE="$env_file" \
     DOCKER_SECCOMP_FILE="$seccomp_file" \
@@ -137,6 +138,24 @@ assert_tail reg.nemui.org/cclaude/cclaude codex exec -- --yolo
 
 run_wrapper "$repo_dir/ccodex" --future-option --sandbox danger-full-access
 assert_tail reg.nemui.org/cclaude/cclaude codex --future-option --sandbox danger-full-access
+
+run_wrapper "$repo_dir/cagy" "prompt with spaces"
+assert_seccomp_denylist Antigravity
+not_contains_arg HERDR_AGENT || fail "Antigravity forwarded HERDR_AGENT to the container"
+assert_docker_env agy
+# In a container agy skips the OS keyring and keeps its sign-in in a file under
+# ~/.gemini, so without this mount every run starts signed out.
+contains_arg "$test_home/.gemini:$test_home/.gemini" ||
+  fail "Antigravity state is not mounted, so its sign-in is lost with the container"
+assert_tail reg.nemui.org/cclaude/cclaude agy "prompt with spaces"
+
+: >"$args_file"
+status=0
+HOME="$test_home" PATH="$fake_bin:/usr/bin:/bin" DOCKER_ARGS_FILE="$args_file" \
+  DOCKER_ENV_FILE="$env_file" DOCKER_SECCOMP_FILE="$seccomp_file" \
+  "$repo_dir/cagy" 2>/dev/null || status=$?
+((status == 127)) || fail "cagy without agy in a mounted command path exited with $status"
+[[ ! -s "$args_file" ]] || fail "cagy started a container without agy in a mounted command path"
 
 # The compositor socket resolves through XDG_RUNTIME_DIR, so stand up a fake one
 # rather than reaching into the developer's live session.

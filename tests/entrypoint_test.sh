@@ -15,6 +15,11 @@ cat >"$test_dir/codex" <<'EOF'
 printf 'codex\0%s\0' "$@" >"$ENTRYPOINT_RESULT"
 EOF
 
+cat >"$test_dir/agy" <<'EOF'
+#!/bin/bash
+printf 'agy\0%s\0' "$@" >"$ENTRYPOINT_RESULT"
+EOF
+
 cat >"$test_dir/setpriv" <<'EOF'
 #!/bin/bash
 printf '%s\0' "$@" >"$SETPRIV_RESULT"
@@ -23,7 +28,7 @@ shift
 exec "$@"
 EOF
 
-chmod +x "$test_dir/claude" "$test_dir/codex" "$test_dir/setpriv"
+chmod +x "$test_dir/claude" "$test_dir/codex" "$test_dir/agy" "$test_dir/setpriv"
 result="$test_dir/result"
 
 USER= ENTRYPOINT_RESULT="$result" PATH="$test_dir:/usr/bin:/bin" \
@@ -36,6 +41,15 @@ mapfile -d '' actual <"$result"
 }
 [[ "${actual[1]}" == --version ]] || {
   printf 'FAIL: entrypoint changed Codex arguments\n' >&2
+  exit 1
+}
+
+USER= ENTRYPOINT_RESULT="$result" PATH="$test_dir:/usr/bin:/bin" \
+  "$repo_dir/entrypoint" agy --version
+
+mapfile -d '' actual <"$result"
+[[ "${actual[0]}" == agy && "${actual[1]}" == --version ]] || {
+  printf 'FAIL: entrypoint selected %s instead of agy\n' "${actual[0]}" >&2
   exit 1
 }
 

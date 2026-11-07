@@ -1,8 +1,8 @@
 # cclaude
 
-A shared Docker image and wrapper scripts for running Claude Code or Codex in a
-container, with common development tools (git, gh, ripgrep, jq, Python, Node.js,
-Rust, Fastly CLI, and Podman) bundled in.
+A shared Docker image and wrapper scripts for running Claude Code, Codex, or
+Antigravity CLI (agy) in a container, with common development tools (git, gh,
+ripgrep, jq, Python, Node.js, Rust, Fastly CLI, and Podman) bundled in.
 
 ## Build
 
@@ -18,12 +18,13 @@ docker compose build
 ./ccodex -a never
 ./ccodex --dangerously-bypass-approvals-and-sandbox
 ./ccodex --sandbox danger-full-access
+./cagy [agy-args...]
 ```
 
-`ccodex` requires the Codex command on the host, installed in either
-`~/.local/bin` or `~/lib/node_modules/.bin`. Both locations are mounted into
-the container, together with the current directory and relevant host
-configuration (including Claude/Codex state, git/gh configuration, and
+`ccodex` and `cagy` require the `codex` or `agy` command on the host, installed
+in either `~/.local/bin` or `~/lib/node_modules/.bin`. Both locations are
+mounted into the container, together with the current directory and relevant
+host configuration (including Claude/Codex/agy state, git/gh configuration, and
 language toolchains).
 
 The wrapper passes Codex arguments through unchanged and leaves its approval
@@ -32,6 +33,20 @@ unprivileged user namespaces, so the wrapper turns off Docker's AppArmor profile
 and swaps its seccomp profile for a denylist carrying Docker's own default
 denials minus the namespace and mount group. Codex sandboxes with Landlock
 and needs neither.
+
+## Signing in to agy
+
+On the host, agy normally keeps its sign-in in the OS keyring. In a container
+it skips the keyring and keeps the sign-in in a file under
+`~/.gemini/antigravity-cli` instead, so the host's sign-in does not carry over.
+Sign in once inside the container: run `./cagy`, open the URL it prints in a
+browser on the host, and paste the code back. The wrapper mounts `~/.gemini`,
+so the file stays on the host and later runs start signed in. The host's agy
+keeps using the keyring and is not affected.
+
+Plugin and MCP server sign-ins go to
+`~/.config/antigravity/plugin-secrets.json`, which is not mounted, so they last
+only as long as the container.
 
 ## Clipboard
 
@@ -77,7 +92,7 @@ the four capabilities `newuidmap` needs, and the image ships no setuid binaries
 apart from `newuidmap` and `newgidmap`. Containers started by Podman are
 unaffected by that bounding set, since a new user namespace resets it.
 
-The container is not a security boundary for its mounts. Either CLI can read
+The container is not a security boundary for its mounts. Each CLI can read
 mounted credentials and sockets, interact with mounted devices and reachable
 network endpoints, and modify writable host content. In particular, writable
 language toolchains and global Node packages can be changed in the container
