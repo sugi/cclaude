@@ -44,13 +44,6 @@ case "$wayland_socket" in
 esac
 [ -S "$wayland_socket" ] || wayland_socket=""
 
-# Rootless Podman's image store has to outlive --rm, and its overlay upperdir
-# cannot sit on the container's own overlay, so keep it on the host. It stays
-# out of ~/.local/share/containers: the host's own Podman keeps its store there
-# under a different id mapping, and the two would copy layers past each other.
-podman_store="$HOME/.local/share/cclaude/containers"
-mkdir -p "$podman_store"
-
 for t in /etc/passwd:ro /etc/group:ro \
 	~/.claude.json ~/.claude ~/.local/share/claude ~/.local/bin:ro ~/.agents \
 	~/.gitconfig:ro ~/.config/ccstatusline:ro ~/.config/gh:ro ~/.cache/ms-playwright \
@@ -207,7 +200,7 @@ exec docker run -w "$PWD" -v "$PWD:$PWD" \
   "${winenv[@]}" "${pulseenv[@]}" "${waylandenv[@]}" \
   --security-opt seccomp=<(printf '%s' "$seccomp_profile") --security-opt apparmor=unconfined \
   --security-opt systempaths=unconfined --cap-add SYS_ADMIN \
-  --rm -it "${volumes[@]}" -v "$podman_store:$HOME/.local/share/containers" \
+  --rm -it "${volumes[@]}" \
   "$image" "${container_args[@]}"
 
 # vim: set sts=2 sw=2:
